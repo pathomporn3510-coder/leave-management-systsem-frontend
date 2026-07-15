@@ -76,15 +76,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
     fetchNotifications();
     
-    const storedRole = localStorage.getItem("role");
-    const storedName = localStorage.getItem("username");
+    const storedRole = sessionStorage.getItem("role");
+    const storedName = sessionStorage.getItem("username");
     if (!storedRole) {
       router.push("/login");
     } else {
+      // Route protection to strictly separate user and manager roles
+      if (storedRole === "manager" && pathname.startsWith("/dashboard/user")) {
+        router.push("/dashboard/manager");
+        return;
+      }
+      if (storedRole === "user" && pathname.startsWith("/dashboard/manager")) {
+        router.push("/dashboard/user");
+        return;
+      }
+      
       setRole(storedRole);
       setUsername(storedName || (storedRole === "manager" ? "Manager" : "User"));
     }
-  }, [router]);
+  }, [router, pathname]);
 
   const markAsRead = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));

@@ -5,21 +5,6 @@ import { useState, useEffect } from "react";
 import { getLeaveRequests, deleteLeaveRequest, updateLeaveRequest } from "@/lib/store";
 import { Mail, Bell, Settings, Calendar as CalendarIcon, X, User, Download, Edit3, Trash2, Upload, Check } from "lucide-react";
 
-// Mock data fallback if API/Store is empty
-const mockData = [
-  // July 2026 data matching exactly the mockup
-  { id: 'm1', startDate: '2026-07-17', endDate: '2026-07-19', type: 'ลาพักร้อน (เหลือ 12 วัน)', reason: 'ไปพักผ่อน', status: 'Pending' },
-  { id: 'm2', startDate: '2026-07-17', endDate: '2026-07-19', type: 'ลากิจ', reason: 'ไปทำใบขับขี่', status: 'Approved', approverReason: 'อนุมัติ' },
-  { id: 'm3', startDate: '2026-07-17', endDate: '2026-07-19', type: 'ลากิจ', reason: 'ไปทำใบขับขี่', status: 'Approved', approverReason: 'อนุมัติ' },
-  { id: 'm4', startDate: '2026-07-17', endDate: '2026-07-17', type: 'ลากิจ', reason: 'ไปเที่ยวสยาม', status: 'Rejected', approverReason: 'ไม่อนุมัติเนื่องจากช่วงเวลาดังกล่าวมีพนักงานลาเยอะแล้ว' },
-  { id: 'm5', startDate: '2026-07-17', endDate: '2026-07-19', type: 'ลากิจ', reason: 'ไปทำใบขับขี่', status: 'Approved', approverReason: 'อนุมัติ' },
-  { id: 'm6', startDate: '2026-07-17', endDate: '2026-07-19', type: 'ลากิจ', reason: 'ไปทำใบขับขี่', status: 'Approved', approverReason: 'อนุมัติ' },
-  { id: 'm7', startDate: '2026-07-17', endDate: '2026-07-19', type: 'ลากิจ', reason: 'ไปทำใบขับขี่', status: 'Rejected', approverReason: 'ไม่อนุมัติเนื่องจากงานที่รับผิดชอบยังไม่เสร็จสิ้น' },
-  { id: 'm8', startDate: '2026-07-17', endDate: '2026-07-19', type: 'ลากิจ', reason: 'ไปทำใบขับขี่', status: 'Approved', approverReason: 'อนุมัติ' },
-  // Data for testing other months
-  { id: 'm9', startDate: '2026-06-10', endDate: '2026-06-11', type: 'ลาป่วย', reason: 'ไข้หวัด', status: 'Approved' },
-  { id: 'm10', startDate: '2026-08-05', endDate: '2026-08-06', type: 'ลาพักร้อน (เหลือ 12 วัน)', reason: 'เที่ยวต่างจังหวัด', status: 'Rejected' },
-];
 
 export default function LeaveHistoryPage() {
   const [requests, setRequests] = useState<any[]>([]);
@@ -64,13 +49,12 @@ export default function LeaveHistoryPage() {
     return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
   };
 
-  const loadRequests = () => {
-    const storedUsername = localStorage.getItem("username") || "Employee";
-    const allRequests = getLeaveRequests();
+  const loadRequests = async () => {
+    const storedUsername = sessionStorage.getItem("username") || "Employee";
+    const allRequests = await getLeaveRequests();
     const realRequests = allRequests.filter(r => r.userId === storedUsername).reverse();
 
-    // Combine real data with mock data so the user always sees the Approved/Rejected examples
-    const userRequests = [...realRequests, ...mockData];
+    const userRequests = [...realRequests];
 
     // Filter by selectedMonthRaw (e.g. "2026-07")
     const filtered = userRequests.filter(r => r.startDate.startsWith(selectedMonthRaw));
@@ -87,7 +71,7 @@ export default function LeaveHistoryPage() {
   };
 
   useEffect(() => {
-    const storedUsername = localStorage.getItem("username");
+    const storedUsername = sessionStorage.getItem("username");
     if (storedUsername && storedUsername !== "User") {
       setUsername(storedUsername);
     }
@@ -100,15 +84,10 @@ export default function LeaveHistoryPage() {
     setIsPickerOpen(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (confirm("คุณต้องการลบคำขอลาใช่หรือไม่?")) {
-      if (selectedRequest.id.toString().startsWith('m')) {
-        // Just remove from local state visually for mock data
-        setRequests(prev => prev.filter(r => r.id !== selectedRequest.id));
-      } else {
-        deleteLeaveRequest(selectedRequest.id);
-        loadRequests();
-      }
+      await deleteLeaveRequest(selectedRequest.id);
+      await loadRequests();
       setSelectedRequest(null);
     }
   };
@@ -135,33 +114,14 @@ export default function LeaveHistoryPage() {
     setShowConfirmEdit(true);
   };
 
-  const confirmAndSave = () => {
-    if (selectedRequest.id.toString().startsWith('m')) {
-      // Mock data edit
-      setRequests(prev => prev.map(r => r.id === selectedRequest.id ? {
-        ...r,
-        type: editForm.type.split(' ')[0], // keep short name for list
-        reason: editForm.reason,
-        dateStr: editForm.startDate === editForm.endDate ? formatDate(editForm.startDate) : `${formatDate(editForm.startDate)} - ${formatDate(editForm.endDate)}`,
-        days: `${calculateDays(editForm.startDate, editForm.endDate)} วัน`,
-        raw: {
-          ...r.raw,
-          type: editForm.type,
-          startDate: editForm.startDate,
-          endDate: editForm.endDate,
-          reason: editForm.reason
-        }
-      } : r));
-    } else {
-      // Real data edit
-      updateLeaveRequest(selectedRequest.id, {
-        type: editForm.type.split(' ')[0],
-        startDate: editForm.startDate,
-        endDate: editForm.endDate,
-        reason: editForm.reason
-      });
-      loadRequests();
-    }
+  const confirmAndSave = async () => {
+    await updateLeaveRequest(selectedRequest.id, {
+      type: editForm.type.split(' ')[0],
+      startDate: editForm.startDate,
+      endDate: editForm.endDate,
+      reason: editForm.reason
+    });
+    await loadRequests();
 
     setShowConfirmEdit(false);
     setIsEditing(false);
@@ -288,7 +248,7 @@ export default function LeaveHistoryPage() {
 
       {/* Leave Details Modal */}
       {(selectedRequest && !isEditing) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-[24px] w-full max-w-[650px] shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200 border-2 border-blue-500 overflow-hidden relative">
 
             {/* Header */}
@@ -417,7 +377,7 @@ export default function LeaveHistoryPage() {
 
       {/* Edit Form Modal (Fullscreen) */}
       {isEditing && (
-        <div className="fixed inset-0 z-[60] bg-[#E2E4E9] overflow-y-auto">
+        <div className="fixed inset-0 z-[120] bg-[#E2E4E9] overflow-y-auto">
           {/* Top Banner (Inside Edit) */}
           <div className="bg-white flex flex-col md:flex-row md:items-center justify-between px-8 py-5 shadow-sm sticky top-0 z-10 gap-4 border-2 border-blue-500">
             <div>
@@ -570,7 +530,7 @@ export default function LeaveHistoryPage() {
 
           {/* Confirmation Modal */}
           {showConfirmEdit && (
-            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
               <div className="bg-white rounded-2xl w-full max-w-[500px] shadow-2xl flex flex-col items-center py-12 px-8 border-[3px] border-[#3B82F6] relative animate-in zoom-in-95 duration-200">
                 <div className="w-[100px] h-[100px] bg-[#00C853] rounded-full flex items-center justify-center mb-6 shadow-sm">
                   <Check className="w-12 h-12 text-white" strokeWidth={4} />

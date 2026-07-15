@@ -24,16 +24,19 @@ const getLeaveDetails = (req: LeaveRequest) => {
 
 export default function ManagerStatusPage() {
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
-  const [username, setUsername] = useState("xxxxx xxxxxx");
+  const [username, setUsername] = useState("Manager");
 
   useEffect(() => {
-    const storedUsername = localStorage.getItem("username");
-    if (storedUsername && storedUsername !== "Manager") {
-      setUsername(storedUsername);
-    }
-    const allRequests = getLeaveRequests();
-    // Filter by username and where approver is explicitly set to CEO
-    setRequests(allRequests.filter(r => r.userId === (storedUsername || "Manager") && r.approver === 'CEO').reverse());
+    const loadRequests = async () => {
+      const storedUsername = sessionStorage.getItem("username");
+      if (storedUsername && storedUsername !== "Manager") {
+        setUsername(storedUsername);
+      }
+      const allRequests = await getLeaveRequests();
+      // Filter by username and where approver is explicitly set to CEO
+      setRequests(allRequests.filter(r => r.userId === (storedUsername || "Manager") && r.approver === 'CEO').reverse());
+    };
+    loadRequests();
   }, []);
 
   return (
@@ -97,10 +100,10 @@ export default function ManagerStatusPage() {
                         {req.status === 'Approved' ? 'CEO อนุมัติแล้ว' :
                           req.status === 'Rejected' ? 'CEO ปฏิเสธคำขอ' : 'รอพิจารณาจาก CEO'}
                       </h4>
-                      {req.reason && req.status !== 'Pending' && (
+                      {req.approverReason && req.status !== 'Pending' && (
                         <div className={`text-xs font-medium p-3 rounded-lg mt-3 w-full max-w-3xl ${req.status === 'Approved' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
                           }`}>
-                          หมายเหตุ: {req.reason}
+                          หมายเหตุ: {req.approverReason}
                         </div>
                       )}
                     </div>

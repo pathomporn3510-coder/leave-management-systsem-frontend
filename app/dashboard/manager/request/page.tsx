@@ -12,12 +12,12 @@ export default function ManagerRequestPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [reason, setReason] = useState("");
-  const [username, setUsername] = useState("xxxxx xxxxxx");
+  const [username, setUsername] = useState("Manager");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    const storedUsername = localStorage.getItem("username");
+    const storedUsername = sessionStorage.getItem("username");
     if (storedUsername && storedUsername !== "Manager") {
       setUsername(storedUsername);
     }
@@ -44,20 +44,7 @@ export default function ManagerRequestPage() {
       approver: 'CEO', // Explicitly route to CEO
     };
 
-    try {
-      // Simulate API call to send data directly to CEO
-      // const response = await fetch('/api/ceo/leave-requests', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(requestData)
-      // });
-      // if (!response.ok) throw new Error("API not ready");
-      
-      throw new Error("API not implemented yet");
-    } catch (error) {
-      // Fallback to Mock Data (Store)
-      addLeaveRequest(requestData);
-    }
+    await addLeaveRequest(requestData);
 
     setShowConfirmModal(false);
     router.push("/dashboard/manager/status");

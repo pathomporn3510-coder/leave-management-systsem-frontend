@@ -7,7 +7,7 @@ export default function DashboardRoot() {
   const router = useRouter();
 
   useEffect(() => {
-    const role = localStorage.getItem("role");
+    const role = sessionStorage.getItem("role");
     if (role === "user") {
       router.replace("/dashboard/user");
     } else if (role === "manager") {

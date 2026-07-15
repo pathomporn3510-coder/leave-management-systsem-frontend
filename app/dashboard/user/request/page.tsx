@@ -12,12 +12,12 @@ export default function RequestLeavePage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [reason, setReason] = useState("");
-  const [username, setUsername] = useState("xxxxx xxxxxx");
+  const [username, setUsername] = useState("User");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    const storedUsername = localStorage.getItem("username");
+    const storedUsername = sessionStorage.getItem("username");
     if (storedUsername && storedUsername !== "User") {
       setUsername(storedUsername);
     }
@@ -32,8 +32,8 @@ export default function RequestLeavePage() {
     setShowConfirmModal(true);
   };
 
-  const confirmSubmit = () => {
-    addLeaveRequest({
+  const confirmSubmit = async () => {
+    await addLeaveRequest({
       userId: username,
       type: type.split(' ')[0], // Extract just the type e.g., "ลาพักร้อน"
       startDate,

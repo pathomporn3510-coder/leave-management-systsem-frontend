@@ -11,15 +11,15 @@ export function UserSidebar() {
   const [username, setUsername] = useState("ชื่อ xxxxx xxxx");
 
   useEffect(() => {
-    const storedName = localStorage.getItem("username");
+    const storedName = sessionStorage.getItem("username");
     if (storedName && storedName !== "User") {
       setUsername(storedName);
     }
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem("role");
-    localStorage.removeItem("username");
+    sessionStorage.removeItem("role");
+    sessionStorage.removeItem("username");
     router.push("/login");
   };
 

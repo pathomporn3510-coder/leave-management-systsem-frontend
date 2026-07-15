@@ -23,7 +23,7 @@ export default function ManagerTeamDashboard() {
   const [username, setUsername] = useState("ชื่อ xxxxx xxxx");
 
   useEffect(() => {
-    const storedUsername = localStorage.getItem("username");
+    const storedUsername = sessionStorage.getItem("username");
     if (storedUsername && storedUsername !== "Manager") {
       setUsername(storedUsername);
     }

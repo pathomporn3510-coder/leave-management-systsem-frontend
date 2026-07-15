@@ -17,13 +17,13 @@ export default function LoginPage() {
     setError("");
 
     if (password === "user") {
-      localStorage.setItem("role", "user");
+      sessionStorage.setItem("role", "user");
       // Store username to associate leave requests
-      localStorage.setItem("username", username || "User");
+      sessionStorage.setItem("username", username || "User");
       router.push("/dashboard/user");
     } else if (password === "manager") {
-      localStorage.setItem("role", "manager");
-      localStorage.setItem("username", username || "Manager");
+      sessionStorage.setItem("role", "manager");
+      sessionStorage.setItem("username", username || "Manager");
       router.push("/dashboard/manager");
     } else {
       setError("Invalid password. Use 'user' or 'manager'.");

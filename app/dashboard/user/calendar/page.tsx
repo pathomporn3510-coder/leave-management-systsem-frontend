@@ -35,10 +35,14 @@ export default function LeaveCalendarPage() {
   const [tempYear, setTempYear] = useState(2026);
 
   useEffect(() => {
-    const storedUsername = localStorage.getItem("username") || "Employee";
-    const realRequests = getLeaveRequests().filter(r => r.userId === storedUsername);
-    // Combine with mock leaves if needed
-    setAllLeaves([...realRequests, ...mockLeaves]);
+    const load = async () => {
+      const storedUsername = sessionStorage.getItem("username") || "Employee";
+      const requests = await getLeaveRequests();
+      const realRequests = requests.filter(r => r.userId === storedUsername);
+      // Combine with mock leaves if needed
+      setAllLeaves([...realRequests, ...mockLeaves]);
+    };
+    load();
   }, []);
 
   const currentMonth = currentDate.getMonth();

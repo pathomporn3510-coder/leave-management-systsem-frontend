@@ -26,13 +26,14 @@ export default function UserDashboard() {
   const maxChartValue = Math.max(4, ...chartData.map(d => d.value));
 
   useEffect(() => {
-    const storedUsername = localStorage.getItem("username") || "Employee";
-    if (storedUsername && storedUsername !== "User") {
-      setUsername(storedUsername);
-    }
+    const loadData = async () => {
+      const storedUsername = sessionStorage.getItem("username") || "Employee";
+      if (storedUsername && storedUsername !== "User") {
+        setUsername(storedUsername);
+      }
 
-    const allRequests = getLeaveRequests();
-    const myRequests = allRequests.filter(r => r.userId === storedUsername);
+      const allRequests = await getLeaveRequests();
+      const myRequests = allRequests.filter(r => r.userId === storedUsername);
 
     if (myRequests.length > 0) {
       const pendingCount = myRequests.filter(r => r.status === "Pending").length;
@@ -77,10 +78,13 @@ export default function UserDashboard() {
         };
       });
       
-      if (recentActivities.length > 0) {
-        setActivities(recentActivities);
+        if (recentActivities.length > 0) {
+          setActivities(recentActivities);
+        }
       }
-    }
+    };
+    
+    loadData();
   }, [selectedYear]);
 
   return (

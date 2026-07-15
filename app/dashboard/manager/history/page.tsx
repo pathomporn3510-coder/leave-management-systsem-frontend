@@ -5,21 +5,7 @@ import { useState, useEffect } from "react";
 import { getLeaveRequests, deleteLeaveRequest, updateLeaveRequest } from "@/lib/store";
 import { Calendar as CalendarIcon, X, User, Download, Edit3, Trash2, Upload, Check } from "lucide-react";
 
-// Mock data fallback if API/Store is empty
-const mockData = [
-  // July 2026 data matching exactly the mockup
-  { id: 'm1', startDate: '2026-07-17', endDate: '2026-07-19', type: 'ลาพักร้อน (เหลือ 12 วัน)', reason: 'ไปพักผ่อน', status: 'Pending' },
-  { id: 'm2', startDate: '2026-07-17', endDate: '2026-07-19', type: 'ลากิจ', reason: 'ไปทำธุระ', status: 'Approved', approverReason: 'CEO อนุมัติ' },
-  { id: 'm3', startDate: '2026-07-17', endDate: '2026-07-19', type: 'ลากิจ', reason: 'ไปทำธุระ', status: 'Approved', approverReason: 'CEO อนุมัติ' },
-  { id: 'm4', startDate: '2026-07-17', endDate: '2026-07-17', type: 'ลากิจ', reason: 'ไปธุระด่วน', status: 'Rejected', approverReason: 'ไม่อนุมัติเนื่องจากช่วงเวลาดังกล่าวมีงานสำคัญของบริษัท' },
-  { id: 'm5', startDate: '2026-07-17', endDate: '2026-07-19', type: 'ลากิจ', reason: 'ไปทำธุระ', status: 'Approved', approverReason: 'CEO อนุมัติ' },
-  { id: 'm6', startDate: '2026-07-17', endDate: '2026-07-19', type: 'ลากิจ', reason: 'ไปทำธุระ', status: 'Approved', approverReason: 'CEO อนุมัติ' },
-  { id: 'm7', startDate: '2026-07-17', endDate: '2026-07-19', type: 'ลากิจ', reason: 'ไปทำธุระ', status: 'Rejected', approverReason: 'ไม่อนุมัติเนื่องจากงานที่รับผิดชอบยังไม่เสร็จสิ้น' },
-  { id: 'm8', startDate: '2026-07-17', endDate: '2026-07-19', type: 'ลากิจ', reason: 'ไปทำธุระ', status: 'Approved', approverReason: 'CEO อนุมัติ' },
-  // Data for testing other months
-  { id: 'm9', startDate: '2026-06-10', endDate: '2026-06-11', type: 'ลาป่วย', reason: 'ไข้หวัด', status: 'Approved' },
-  { id: 'm10', startDate: '2026-08-05', endDate: '2026-08-06', type: 'ลาพักร้อน (เหลือ 12 วัน)', reason: 'เที่ยวต่างจังหวัด', status: 'Rejected' },
-];
+
 
 export default function LeaveHistoryPage() {
   const [requests, setRequests] = useState<any[]>([]);
@@ -28,6 +14,7 @@ export default function LeaveHistoryPage() {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [tempYear, setTempYear] = useState(2026);
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [viewMode, setViewMode] = useState<"department" | "personal">("department");
 
   const router = useRouter();
   const [showConfirmEdit, setShowConfirmEdit] = useState(false);
@@ -64,20 +51,26 @@ export default function LeaveHistoryPage() {
     return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
   };
 
-  const loadRequests = () => {
-    const storedUsername = localStorage.getItem("username") || "Manager";
-    const allRequests = getLeaveRequests();
-    // Filter only requests for this Manager that are routed to CEO
-    const realRequests = allRequests.filter(r => r.userId === storedUsername && r.approver === 'CEO').reverse();
-
-    // Combine real data with mock data so the user always sees the Approved/Rejected examples
-    const userRequests = [...realRequests, ...mockData];
+  const loadRequests = async () => {
+    const storedUsername = sessionStorage.getItem("username") || "Manager";
+    const allRequests = await getLeaveRequests();
+    
+    let targetRequests = [];
+    if (viewMode === "personal") {
+      // Personal mode: show all requests made by this user
+      targetRequests = allRequests.filter(r => r.userId === storedUsername);
+    } else {
+      // Department mode: show all requests made by others in the department
+      targetRequests = allRequests.filter(r => r.userId !== storedUsername);
+    }
 
     // Filter by selectedMonthRaw (e.g. "2026-07")
-    const filtered = userRequests.filter(r => r.startDate.startsWith(selectedMonthRaw));
+    const filtered = targetRequests.reverse().filter(r => r.startDate.startsWith(selectedMonthRaw));
 
     setRequests(filtered.map(r => ({
       id: r.id,
+      empId: `EMP-${(r.userId || '000').substring(0,3).toUpperCase()}${r.id.substring(0,2).toUpperCase()}`,
+      name: r.userId || 'Unknown',
       dateStr: r.startDate === r.endDate ? formatDate(r.startDate) : `${formatDate(r.startDate)} - ${formatDate(r.endDate)}`,
       type: r.type,
       days: `${calculateDays(r.startDate, r.endDate)} วัน`,
@@ -88,12 +81,12 @@ export default function LeaveHistoryPage() {
   };
 
   useEffect(() => {
-    const storedUsername = localStorage.getItem("username");
+    const storedUsername = sessionStorage.getItem("username");
     if (storedUsername && storedUsername !== "Manager") {
       setUsername(storedUsername);
     }
     loadRequests();
-  }, [selectedMonthRaw]);
+  }, [selectedMonthRaw, viewMode]);
 
   const handleMonthSelect = (monthIndex: number) => {
     const mm = (monthIndex + 1).toString().padStart(2, '0');
@@ -101,15 +94,10 @@ export default function LeaveHistoryPage() {
     setIsPickerOpen(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (confirm("คุณต้องการลบคำขอลาใช่หรือไม่?")) {
-      if (selectedRequest.id.toString().startsWith('m')) {
-        // Just remove from local state visually for mock data
-        setRequests(prev => prev.filter(r => r.id !== selectedRequest.id));
-      } else {
-        deleteLeaveRequest(selectedRequest.id);
-        loadRequests();
-      }
+      await deleteLeaveRequest(selectedRequest.id);
+      await loadRequests();
       setSelectedRequest(null);
     }
   };
@@ -136,33 +124,14 @@ export default function LeaveHistoryPage() {
     setShowConfirmEdit(true);
   };
 
-  const confirmAndSave = () => {
-    if (selectedRequest.id.toString().startsWith('m')) {
-      // Mock data edit
-      setRequests(prev => prev.map(r => r.id === selectedRequest.id ? {
-        ...r,
-        type: editForm.type.split(' ')[0], // keep short name for list
-        reason: editForm.reason,
-        dateStr: editForm.startDate === editForm.endDate ? formatDate(editForm.startDate) : `${formatDate(editForm.startDate)} - ${formatDate(editForm.endDate)}`,
-        days: `${calculateDays(editForm.startDate, editForm.endDate)} วัน`,
-        raw: {
-          ...r.raw,
-          type: editForm.type,
-          startDate: editForm.startDate,
-          endDate: editForm.endDate,
-          reason: editForm.reason
-        }
-      } : r));
-    } else {
-      // Real data edit
-      updateLeaveRequest(selectedRequest.id, {
-        type: editForm.type.split(' ')[0],
-        startDate: editForm.startDate,
-        endDate: editForm.endDate,
-        reason: editForm.reason
-      });
-      loadRequests();
-    }
+  const confirmAndSave = async () => {
+    await updateLeaveRequest(selectedRequest.id, {
+      type: editForm.type.split(' ')[0],
+      startDate: editForm.startDate,
+      endDate: editForm.endDate,
+      reason: editForm.reason
+    });
+    await loadRequests();
 
     setShowConfirmEdit(false);
     setIsEditing(false);
@@ -178,7 +147,9 @@ export default function LeaveHistoryPage() {
       <div className="bg-white flex items-center justify-between px-8 py-5 shadow-sm z-10">
         <div>
           <h1 className="text-xl font-bold text-black tracking-tight">ประวัติการลา (Leave History) - Manager</h1>
-          <p className="text-xs text-gray-500 mt-1 font-medium">ดูประวัติและสถานะการลางานของคุณทั้งหมดที่ส่งให้ CEO</p>
+          <p className="text-xs text-gray-500 mt-1 font-medium">
+            {viewMode === "department" ? "ดูประวัติและสถานะการลางานของแผนก" : "ดูประวัติและสถานะการลางานของคุณทั้งหมดที่ส่งให้ CEO"}
+          </p>
         </div>
       </div>
 
@@ -186,9 +157,10 @@ export default function LeaveHistoryPage() {
       <div className="flex-1 p-6 md:p-8">
         <div className="max-w-[1200px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-          {/* Custom Month/Year Picker */}
-          <div className="mb-8 relative inline-block">
-            <button
+          {/* Custom Month/Year Picker and View Toggle */}
+          <div className="mb-8 flex items-center justify-between relative">
+            <div className="relative inline-block">
+              <button
               onClick={() => setIsPickerOpen(!isPickerOpen)}
               className="bg-white border border-gray-200 text-black text-[15px] font-bold py-3 px-6 rounded-xl shadow-sm flex items-center gap-3 hover:bg-gray-50 hover:border-blue-400 hover:shadow-md transition-all active:scale-95"
             >
@@ -229,6 +201,14 @@ export default function LeaveHistoryPage() {
                 </div>
               </>
             )}
+            </div>
+
+            <button
+              onClick={() => setViewMode(viewMode === "department" ? "personal" : "department")}
+              className="text-[14px] font-bold text-gray-600 hover:text-blue-600 underline underline-offset-4 transition-colors"
+            >
+              {viewMode === "department" ? "ดูประวัติการลาของส่วนตัว" : "ดูประวัติการลาของแผนก"}
+            </button>
           </div>
 
           {/* Table Card */}
@@ -246,36 +226,70 @@ export default function LeaveHistoryPage() {
                 <table className="w-full text-sm text-left">
                   <thead className="bg-[#CDE4EB] text-gray-800 text-[15px]">
                     <tr>
+                      {viewMode === "department" && (
+                        <>
+                          <th className="px-6 py-4 font-bold whitespace-nowrap">รหัสพนักงาน</th>
+                          <th className="px-6 py-4 font-bold whitespace-nowrap">ชื่อพนักงาน</th>
+                        </>
+                      )}
                       <th className="px-6 py-4 font-bold whitespace-nowrap">วันที่ลา</th>
                       <th className="px-6 py-4 font-bold whitespace-nowrap">ประเภทการลา</th>
                       <th className="px-6 py-4 font-bold text-center whitespace-nowrap">จำนวนวันลา</th>
-                      <th className="px-6 py-4 font-bold whitespace-nowrap">เหตุผล</th>
+                      {viewMode === "personal" && <th className="px-6 py-4 font-bold whitespace-nowrap">เหตุผล</th>}
                       <th className="px-6 py-4 font-bold text-center whitespace-nowrap">สถานะ</th>
-                      <th className="px-6 py-4 font-bold text-center whitespace-nowrap">จัดการ</th>
+                      {viewMode === "personal" && <th className="px-6 py-4 font-bold text-center whitespace-nowrap">จัดการ</th>}
                     </tr>
                   </thead>
                   <tbody>
                     {requests.map((req, idx) => (
                       <tr key={req.id || idx} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+                        {viewMode === "department" && (
+                          <>
+                            <td className="px-6 py-5 text-gray-500 font-medium whitespace-nowrap">{req.empId}</td>
+                            <td className="px-6 py-5 text-black font-medium whitespace-nowrap">{req.name}</td>
+                          </>
+                        )}
                         <td className="px-6 py-5 text-black font-medium whitespace-nowrap">{req.dateStr}</td>
                         <td className="px-6 py-5 text-black font-medium whitespace-nowrap">{req.type}</td>
                         <td className="px-6 py-5 text-black font-medium text-center whitespace-nowrap">{req.days}</td>
-                        <td className="px-6 py-5 text-black font-medium">{req.reason}</td>
-                        <td className="px-6 py-5 text-center whitespace-nowrap">
-                          <span className={`inline-block px-5 py-1.5 rounded-full text-xs font-bold text-white shadow-sm min-w-[80px] ${req.status === 'Approved' ? 'bg-[#00E676]' :
-                              req.status === 'Rejected' ? 'bg-[#FF0000]' : 'bg-[#FFA000]'
-                            }`}>
-                            {req.status === 'Approved' ? 'อนุมัติ' : req.status === 'Rejected' ? 'ปฏิเสธ' : 'รออนุมัติ'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-5 text-center whitespace-nowrap">
-                          <button
-                            onClick={() => setSelectedRequest(req)}
-                            className="text-gray-600 hover:text-blue-600 font-medium text-[13px] transition-colors underline underline-offset-2"
-                          >
-                            ดูรายละเอียด
-                          </button>
-                        </td>
+                        {viewMode === "personal" && <td className="px-6 py-5 text-black font-medium">{req.reason}</td>}
+                        
+                        {viewMode === "department" ? (
+                          <td className="px-6 py-5 text-center whitespace-nowrap">
+                            <div className="flex flex-col items-center gap-1.5">
+                              <span className={`inline-block px-5 py-1.5 rounded-full text-xs font-bold text-white shadow-sm min-w-[80px] ${req.status === 'Approved' ? 'bg-[#00E676]' :
+                                  req.status === 'Rejected' ? 'bg-[#FF0000]' : 'bg-[#FFA000]'
+                                }`}>
+                                {req.status === 'Approved' ? 'อนุมัติ' : req.status === 'Rejected' ? 'ปฏิเสธ' : 'รออนุมัติ'}
+                              </span>
+                              <button
+                                onClick={() => setSelectedRequest(req)}
+                                className="text-gray-600 hover:text-blue-600 font-medium text-[12px] flex items-center gap-1 transition-colors"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                                ดูรายละเอียด
+                              </button>
+                            </div>
+                          </td>
+                        ) : (
+                          <>
+                            <td className="px-6 py-5 text-center whitespace-nowrap">
+                              <span className={`inline-block px-5 py-1.5 rounded-full text-xs font-bold text-white shadow-sm min-w-[80px] ${req.status === 'Approved' ? 'bg-[#00E676]' :
+                                  req.status === 'Rejected' ? 'bg-[#FF0000]' : 'bg-[#FFA000]'
+                                }`}>
+                                {req.status === 'Approved' ? 'อนุมัติ' : req.status === 'Rejected' ? 'ปฏิเสธ' : 'รออนุมัติ'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-5 text-center whitespace-nowrap">
+                              <button
+                                onClick={() => setSelectedRequest(req)}
+                                className="text-gray-600 hover:text-blue-600 font-medium text-[13px] transition-colors underline underline-offset-2"
+                              >
+                                ดูรายละเอียด
+                              </button>
+                            </td>
+                          </>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -289,8 +303,8 @@ export default function LeaveHistoryPage() {
 
       {/* Leave Details Modal */}
       {(selectedRequest && !isEditing) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-[24px] w-full max-w-[650px] shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200 border-2 border-blue-500 overflow-hidden relative">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-[24px] w-full max-w-[650px] shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200 overflow-hidden relative">
 
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-5">
@@ -314,8 +328,8 @@ export default function LeaveHistoryPage() {
                 <div className="flex-1">
                   <h3 className="font-bold text-[15px] text-black mb-3">ข้อมูลพนักงาน (Employee Info)</h3>
                   <div className="text-[14px] text-gray-800 space-y-2">
-                    <p className="flex items-center gap-2"><span className="font-bold min-w-[90px]">ชื่อ:</span> {username}</p>
-                    <p className="flex items-center gap-2"><span className="font-bold min-w-[90px]">แผนก|ตำแหน่ง:</span> Engineering | Engineering Manager</p>
+                    <p className="flex items-center gap-2"><span className="font-bold min-w-[90px]">ชื่อ:</span> {selectedRequest.name || selectedRequest.raw?.userId || username}</p>
+                    <p className="flex items-center gap-2"><span className="font-bold min-w-[90px]">แผนก|ตำแหน่ง:</span> Engineering | {selectedRequest.name === username ? "Engineering Manager" : "Software Engineer"}</p>
                   </div>
                 </div>
               </div>
@@ -367,7 +381,7 @@ export default function LeaveHistoryPage() {
               {/* Approval */}
               <div className="mt-2">
                 <h3 className="font-bold text-[#00A859] flex items-center gap-2 text-[15px] mb-2">
-                  <span className="font-extrabold text-black/50 tracking-tighter">NID</span> การอนุมัติโดย CEO (CEO Approval)
+                  <span className="font-extrabold text-black/50 tracking-tighter">NID</span> การอนุมัติ (Approval)
                 </h3>
                 <div className="flex flex-col md:flex-row items-stretch gap-4 bg-[#F8F9FA] border border-gray-200 rounded-xl p-4">
                   <div className="w-[120px] flex flex-col justify-center border-r border-gray-200 pr-4">
@@ -379,13 +393,13 @@ export default function LeaveHistoryPage() {
                     </span>
                   </div>
                   <div className="flex-1 flex flex-col justify-center">
-                    <span className="text-[12px] font-bold text-black mb-2">เหตุผลของผู้อนุมัติ (CEO)</span>
+                    <span className="text-[12px] font-bold text-black mb-2">เหตุผลของผู้อนุมัติ ({viewMode === "department" ? "Manager" : "CEO"})</span>
                     <input
                       type="text"
                       readOnly
-                      value={selectedRequest.raw?.approverReason || (selectedRequest.status === 'Pending' ? 'รอการพิจารณาจาก CEO' : 'ไม่มีหมายเหตุเพิ่มเติม')}
-                      className={`w-full border border-gray-300 rounded-xl p-2.5 text-[14px] outline-none cursor-default ${selectedRequest.status === 'Rejected' ? 'text-red-600 bg-red-50/50' :
-                          selectedRequest.status === 'Approved' ? 'text-green-600 bg-green-50/50' : 'text-gray-500 bg-white'
+                      value={selectedRequest.raw?.approverReason || (selectedRequest.status === 'Pending' ? 'รอการพิจารณา' : 'ไม่มีหมายเหตุเพิ่มเติม')}
+                      className={`w-full border rounded-xl p-2.5 text-[14px] outline-none cursor-default ${selectedRequest.status === 'Rejected' ? 'border-red-200 text-red-600 bg-red-50' :
+                          selectedRequest.status === 'Approved' ? 'border-[#D1F2DF] text-green-600 bg-[#F4FDF8]' : 'border-gray-300 text-gray-500 bg-white'
                         }`}
                     />
                   </div>
@@ -398,7 +412,7 @@ export default function LeaveHistoryPage() {
             <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-white">
               <span className="text-[13px] font-medium text-gray-300">วันที่ยื่นคำขอ : {formatDate(selectedRequest.raw?.createdAt || new Date().toISOString())}</span>
 
-              {selectedRequest.status === 'Pending' && (
+              {selectedRequest.status === 'Pending' && viewMode === "personal" && (
                 <div className="flex items-center gap-5">
                   <button onClick={handleDelete} className="text-gray-400 hover:text-red-500 font-bold text-[14px] flex items-center gap-1.5 transition-colors">
                     <Trash2 className="w-4 h-4" strokeWidth={2.5} />
@@ -418,7 +432,7 @@ export default function LeaveHistoryPage() {
 
       {/* Edit Form Modal (Fullscreen) */}
       {isEditing && (
-        <div className="fixed inset-0 z-[60] bg-[#E2E4E9] overflow-y-auto">
+        <div className="fixed inset-0 z-[120] bg-[#E2E4E9] overflow-y-auto">
           {/* Top Banner (Inside Edit) */}
           <div className="bg-white flex flex-col md:flex-row md:items-center justify-between px-8 py-5 shadow-sm sticky top-0 z-10 gap-4 border-b border-gray-200">
             <div>
@@ -562,7 +576,7 @@ export default function LeaveHistoryPage() {
 
           {/* Confirmation Modal */}
           {showConfirmEdit && (
-            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
               <div className="bg-white rounded-2xl w-full max-w-[500px] shadow-2xl flex flex-col items-center py-12 px-8 border-[3px] border-[#3B82F6] relative animate-in zoom-in-95 duration-200">
                 <div className="w-[100px] h-[100px] bg-[#00C853] rounded-full flex items-center justify-center mb-6 shadow-sm">
                   <Check className="w-12 h-12 text-white" strokeWidth={4} />
